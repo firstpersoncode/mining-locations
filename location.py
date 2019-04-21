@@ -1,6 +1,4 @@
-import requests
-import json
-import os
+import argparse, sys, requests, json, os
 from http import cookies
 from pprint import pprint
 
@@ -12,6 +10,61 @@ oauthFile = "oauth_location.txt"
 
 hostAPI = 'https://x.rajaapi.com/'
 getTokenURI = hostAPI + 'poe'
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--update', type=str, default='all', help='choose file: [all | province | kabupaten | kecamatan | kelurahan]')
+    args = parser.parse_args()
+    sys.stdout.write(args.update)
+    update(args)
+
+def update(args):
+    if (args.update == "all"):
+        return updateAll()
+
+    switcherJSON = {
+        'province': provinceJSON,
+        'kabupaten': kabupatenJSON,
+        'kecamatan': kecamatanJSON,
+        'kelurahan': kelurahanJSON
+    }
+
+    switcherHandlers = {
+        'province': getProvinces,
+        'kabupaten': getKabupaten,
+        'kecamatan': getKecamatan,
+        'kelurahan': getKelurahan
+    }
+
+    fileName = switcherJSON.get(args.update, "Invalid option --update, should be: all | province | kabupaten | kecamatan | kelurahan")
+    cb = switcherHandlers.get(args.update)
+
+    fileUpdater(fileName, cb)
+
+def fileUpdater(fileName, cb):
+    deleteFile(fileName)
+    validateFileJSON(fileName, cb)
+
+def updateAll():
+    cleanFiles()
+    fetchLocations()
+
+def fetchLocations():
+    print('==================================================validate provinces==================================================')
+    validateFileJSON(provinceJSON, getProvinces)
+    print('==================================================validate kabupaten==================================================')
+    validateFileJSON(kabupatenJSON, getKabupaten)
+    print('==================================================validate kecamatan==================================================')
+    validateFileJSON(kecamatanJSON, getKecamatan)
+    print('==================================================validate kelurahan==================================================')
+    validateFileJSON(kelurahanJSON, getKelurahan)
+
+def cleanFiles():
+    print('==================================================cleaning files==================================================')
+    deleteFile(provinceJSON)
+    deleteFile(kabupatenJSON)
+    deleteFile(kecamatanJSON)
+    deleteFile(kelurahanJSON)
 
 # UTILS:
 def getProvincesURI(token):
@@ -45,9 +98,9 @@ def readFileJSON(fileName):
 
     res = [p for p in data]
 
-    return data
+    return res
 
-def validateFileJSON(fileName, callBack):
+def validateFileJSON(fileName, cb):
     result = ''
     try:
         result = readFile(fileName)
@@ -57,7 +110,7 @@ def validateFileJSON(fileName, callBack):
         result = readFile(fileName)
         pass
 
-    return callBack()
+    return cb()
 
 def deleteFile(fileName):
     if os.path.exists(fileName):
@@ -125,24 +178,12 @@ def getKelurahan():
     token = validateToken()
     kecamatan = readFileJSON(kecamatanJSON)
     for k in kecamatan:
-
-        r = requests.get(getKecamatanURI(token, k.get("id")))
+        r = requests.get(getKelurahanURI(token, k.get("id")))
         res = r.json()
         kelurahan = readFileJSON(kelurahanJSON)
         data = json.dumps(kelurahan + res.get("data"))
         pprint(data)
         writeFile(kelurahanJSON, data)
-print('==================================================cleaning files==================================================')
-deleteFile(provinceJSON)
-deleteFile(kabupatenJSON)
-deleteFile(kecamatanJSON)
-deleteFile(kelurahanJSON)
 
-print('==================================================validate provinces==================================================')
-getProvinces()
-print('==================================================validate kabupaten==================================================')
-validateFileJSON(kabupatenJSON, getKabupaten)
-print('==================================================validate kecamatan==================================================')
-validateFileJSON(kecamatanJSON, getKecamatan)
-print('==================================================validate kelurahan==================================================')
-validateFileJSON(kelurahanJSON, getKelurahan)
+if __name__ == "__main__":
+    main()
